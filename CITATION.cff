@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "bunker-shielding-mc: Geant4 Monte Carlo models for radiotherapy bunker shielding benchmarked against NCRP 151"
+authors:
+  - family-names: Younous
+    given-names: Khaoula
+    orcid: "https://orcid.org/0009-0003-1492-6787"
+version: 1.0.0
+date-released: 2026-10-02
+license: MIT
+repository-code: "https://github.com/Khaoula-codeZ/bunker-shielding-mc"
+keywords: [Geant4, Monte Carlo, radiation shielding, radiotherapy bunker, NCRP 151, maze door]

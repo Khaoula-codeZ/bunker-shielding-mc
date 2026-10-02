@@ -1,0 +1,16 @@
+# Broad parallel 6 MV beam, 100x100 cm, normally incident on the slab front face (z = 0)
+/control/verbose 0
+/run/verbose 1
+/gps/particle gamma
+/gps/pos/type Plane
+/gps/pos/shape Square
+/gps/pos/centre 0 0 -20 cm
+/gps/pos/halfx 50 cm
+/gps/pos/halfy 50 cm
+/gps/direction 0 0 1
+/gps/ene/type User
+/gps/hist/type energy
+/control/execute spectrum_6MV.mac
+/random/setSeeds 23 29
+/run/printProgress 500000
+/run/beamOn 5000000

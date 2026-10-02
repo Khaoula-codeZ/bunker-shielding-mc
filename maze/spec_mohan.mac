@@ -1,0 +1,3 @@
+/gps/ene/type User
+/gps/hist/type energy
+/control/execute spectrum_6MV.mac

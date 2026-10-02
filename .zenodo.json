@@ -1,0 +1,9 @@
+{
+  "title": "bunker-shielding-mc: Geant4 Monte Carlo models for radiotherapy bunker shielding benchmarked against NCRP 151",
+  "upload_type": "software",
+  "description": "Geant4 models of a 6 MV broad beam through ordinary concrete (benchmark against NCRP 151 tenth-value layers: TVL1 36.8 cm vs 37 cm, TVLe 33.8 cm vs 33 cm) and of a 6 MV bunker maze door with lead door and water phantom (scatter and leakage components compared with the NCRP 151 maze method). Includes source code, macros, analysis scripts and result files.",
+  "creators": [{"name": "Younous, Khaoula", "orcid": "0009-0003-1492-6787"}],
+  "keywords": ["Geant4", "Monte Carlo", "radiation shielding", "radiotherapy bunker", "NCRP 151", "maze door"],
+  "license": "MIT",
+  "access_right": "open"
+}
