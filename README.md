@@ -1,6 +1,7 @@
 # bunker-shielding-mc
 
 Geant4 Monte Carlo models for radiotherapy bunker shielding (6 MV), benchmarked against NCRP Report No. 151.
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23121012.svg)](https://doi.org/10.5281/zenodo.23121012)
 
 Two models:
 
