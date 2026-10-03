@@ -1,3 +1,4 @@
+doi: 10.5281/zenodo.23121012
 cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
 title: "bunker-shielding-mc: Geant4 Monte Carlo models for radiotherapy bunker shielding benchmarked against NCRP 151"
