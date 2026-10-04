@@ -7,12 +7,17 @@
 // Set BUNKER_ANALOG=1 in the environment to run without biasing (bias check).
 // Scoring: photon fluence spectra (per cm2, per source photon) on each 10 cm plane,
 // written as CSV histograms; H*(10) and TVLs are computed in analyze.py.
+// v5 (03/10/2026): per-history H*(10) estimator on every plane (sum and sum of squares of the
+// history score, written to hstat.csv). Uses the same ICRP 74 coefficients evaluated at the
+// histogram bin centre, so its mean reproduces the histogram result exactly; its variance
+// accounts for the correlation between split copies of one history (DV01 open action 5).
 #include "G4RunManagerFactory.hh"
 #include "G4VUserDetectorConstruction.hh"
 #include "G4VUserPrimaryGeneratorAction.hh"
 #include "G4VUserActionInitialization.hh"
 #include "G4UserSteppingAction.hh"
 #include "G4UserRunAction.hh"
+#include "G4UserEventAction.hh"
 #include "G4GeneralParticleSource.hh"
 #include "G4NistManager.hh"
 #include "G4Box.hh"
@@ -29,10 +34,14 @@
 #include "G4Step.hh"
 #include "G4Run.hh"
 #include "G4Gamma.hh"
+#include "G4Event.hh"
+#include <algorithm>
 #include <cmath>
 #include <vector>
 #include <string>
 #include <cstdlib>
+#include <fstream>
+#include <iomanip>
 
 namespace cfg {
   constexpr G4int    nLayers   = 20;          // 20 x 10 cm = 200 cm concrete
@@ -41,6 +50,22 @@ namespace cfg {
   constexpr G4double scoreHalf = 25 * cm;     // central 50x50 cm scoring window
   constexpr G4int    nBins     = 70;
   constexpr G4double eMax      = 7 * MeV;
+}
+
+namespace hstar {  // ICRP 74 photon H*(10)/fluence, pSv cm2 (log-log interpolation, clamped)
+  const G4double E[25] = {0.01,0.015,0.02,0.03,0.04,0.05,0.06,0.08,0.1,0.15,0.2,0.3,0.4,0.5,0.6,0.8,1,1.5,2,3,4,5,6,8,10};
+  const G4double H[25] = {0.061,0.83,1.05,0.81,0.64,0.55,0.51,0.53,0.61,0.89,1.20,1.80,2.38,2.93,3.44,4.38,5.20,6.90,8.60,11.1,13.4,15.5,17.6,21.6,25.6};
+  inline G4double h(G4double e) {
+    if (e <= E[0]) return H[0];
+    if (e >= E[24]) return H[24];
+    int i = 0; while (E[i + 1] < e) ++i;
+    const G4double t = std::log(e / E[i]) / std::log(E[i + 1] / E[i]);
+    return std::exp(std::log(H[i]) + t * std::log(H[i + 1] / H[i]));
+  }
+}
+
+namespace tally {  // per-history H*(10) score per plane (pSv per source photon, unnormalised by N)
+  std::vector<G4double> ev(cfg::nLayers + 1, 0.), s(cfg::nLayers + 1, 0.), s2(cfg::nLayers + 1, 0.);
 }
 
 class Detector : public G4VUserDetectorConstruction {
@@ -109,7 +134,25 @@ class Stepping : public G4UserSteppingAction {
     const G4double area = std::pow(2 * cfg::scoreHalf / cm, 2);     // cm2
     // Pre-step weight = weight while crossing, unaffected by split/roulette at the boundary
     const G4double w = s->GetPreStepPoint()->GetWeight() / cosz / area;
-    G4AnalysisManager::Instance()->FillH1(plane, post->GetKineticEnergy() / MeV, w);
+    const G4double e = post->GetKineticEnergy() / MeV;
+    G4AnalysisManager::Instance()->FillH1(plane, e, w);
+    // Per-history tally: same bin-centre H*(10) coefficient as analyze.py; under/overflow skipped
+    const G4double binW = cfg::eMax / MeV / cfg::nBins;
+    if (e >= 0. && e < cfg::eMax / MeV) {
+      const G4int b = static_cast<G4int>(e / binW);
+      tally::ev[plane] += w * hstar::h((b + 0.5) * binW);
+    }
+  }
+};
+
+class EventAction : public G4UserEventAction {
+ public:
+  void BeginOfEventAction(const G4Event*) override { std::fill(tally::ev.begin(), tally::ev.end(), 0.); }
+  void EndOfEventAction(const G4Event*) override {
+    for (std::size_t i = 0; i < tally::ev.size(); ++i) {
+      tally::s[i] += tally::ev[i];
+      tally::s2[i] += tally::ev[i] * tally::ev[i];
+    }
   }
 };
 
@@ -128,7 +171,17 @@ class RunAction : public G4UserRunAction {
     auto am = G4AnalysisManager::Instance();
     am->Write();
     am->CloseFile();
-    G4cout << "NPRIMARIES " << r->GetNumberOfEvent() << G4endl;
+    const G4int N = r->GetNumberOfEvent();
+    G4cout << "NPRIMARIES " << N << G4endl;
+    std::ofstream f("hstat.csv");
+    f << "plane,depth_cm,N,sum,sum2\n" << std::setprecision(17);
+    for (std::size_t i = 0; i < tally::s.size(); ++i) {
+      f << i << "," << i * cfg::layer / cm << "," << N << "," << tally::s[i] << "," << tally::s2[i] << "\n";
+      const G4double mean = tally::s[i] / N;
+      const G4double var = (N > 1) ? (tally::s2[i] / N - mean * mean) / (N - 1) : 0.;
+      G4cout << "HSTAT " << i * cfg::layer / cm << " " << mean << " "
+             << (mean > 0 ? std::sqrt(std::max(var, 0.)) / mean : -1) << G4endl;
+    }
   }
 };
 
@@ -138,6 +191,7 @@ class Actions : public G4VUserActionInitialization {
     SetUserAction(new Primary);
     SetUserAction(new RunAction);
     SetUserAction(new Stepping);
+    SetUserAction(new EventAction);
   }
 };
 

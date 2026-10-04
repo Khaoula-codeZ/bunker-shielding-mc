@@ -9,6 +9,9 @@
 // inner maze wall x[-3.5,1.5] y[2.5,2.5+tW]; maze corridor x[-3.5,3.5] y[2.5+tW,4.0+tW]; door at x = -3.5.
 // v3: inner maze wall thickness tW (argv[3], cm, default 50). Corridor width (1.5 m) and outer
 //     maze wall (1.2 m) are kept; the block is extended north by (tW - 0.5 m).
+// v3.1 (03/10/2026): environment variable MAZE_IMP_EXP rescales every cell importance as
+//     I -> I^p (default p = 1, unchanged). p = 0.5 halves the importance jumps (max 8 instead of 64):
+//     an unchanged door dose within uncertainty shows the result does not depend on the importance map.
 #include "G4RunManagerFactory.hh"
 #include "G4VUserDetectorConstruction.hh"
 #include "G4VUserPrimaryGeneratorAction.hh"
@@ -52,6 +55,7 @@ namespace cfg {
   const G4double scoreHalfX = 5 * cm;                  // 10 cm deep scoring slab
   G4double vFull = 0., vCent = 0.;                     // cm3
   const G4double voxHalf = 2 * cm;                     // 4x4x4 cm dose voxel
+  G4double impExp = 1.;                                // importance exponent (MAZE_IMP_EXP)
 }
 
 namespace hstar {  // ICRP 74 photon H*(10)/fluence, pSv cm2
@@ -78,7 +82,7 @@ class Detector : public G4VUserDetectorConstruction {
   G4VPhysicalVolume* World() const { return fWorld; }
   void CreateImportanceStore() {
     G4IStore* is = G4IStore::GetInstance();
-    for (auto& c : fCells) is->AddImportanceGeometryCell(c.second, *c.first, 0);
+    for (auto& c : fCells) is->AddImportanceGeometryCell(std::pow(c.second, cfg::impExp), *c.first, 0);
   }
 
  private:
@@ -209,6 +213,8 @@ int main(int argc, char** argv) {
   if (argc > 2) cfg::tPb = std::atof(argv[2]) * mm;
   if (argc > 3) cfg::tW = std::atof(argv[3]) * cm;
   cfg::doorY = 3.25 * m + cfg::tW;
+  if (const char* p = std::getenv("MAZE_IMP_EXP")) cfg::impExp = std::atof(p);
+  G4cout << "IMP_EXP " << cfg::impExp << G4endl;
   G4cout << "INNERWALL_CM " << cfg::tW / cm << " PB_MM " << cfg::tPb / mm << G4endl;
   auto rm = G4RunManagerFactory::CreateRunManager(G4RunManagerType::Serial);
   auto det = new Detector;
